@@ -27,6 +27,9 @@
 @property (nonatomic, assign) BOOL navigationBarTranslucent;
 @property (nonatomic, strong) UINavigationBar *navBar;
 @property (nonatomic, strong) UIImageView *snapShotImageView; // Oana change
+@property (nonatomic, strong) UIImageView *logoImageView;// Oana change
+
+- (void)setBackgroundImage:(UIImage *)backgroundImage andLogoImage:(UIImage *)logoImage; // Oana change
 
 // Used when displaying the lock. Shown without a navBar, added directly on UIWindow
 - (void)showLockScreenWithAnimation:(BOOL)animated;
@@ -48,7 +51,7 @@
 
 /**
  *  These should have been private, but since I didn't do that from the start,
- *  consider them helper methods, should they serve you in any way. 
+ *  consider them helper methods, should they serve you in any way.
  *  I don't want to break backwards compatibility.
  */
 - (void)prepareAsLockScreen;

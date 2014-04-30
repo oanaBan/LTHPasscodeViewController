@@ -164,6 +164,10 @@ static NSInteger const kMaxNumberOfAllowedFailedAttempts = 10;
     self.snapShotImageView = [[UIImageView alloc] initWithFrame:CGRectMake(0, 0, self.view.frame.size.width, self.view.frame.size.height)];
     [self.view addSubview:self.snapShotImageView];
     [self.snapShotImageView setTranslatesAutoresizingMaskIntoConstraints:NO];
+    
+    self.logoImageView = [[UIImageView alloc] init];
+    [self.view addSubview:self.logoImageView];
+    [self.logoImageView setTranslatesAutoresizingMaskIntoConstraints:NO];
     ///////
     
 	_failedAttempts = 0;
@@ -268,6 +272,16 @@ static NSInteger const kMaxNumberOfAllowedFailedAttempts = 10;
     [self.view setNeedsUpdateConstraints];
 }
 
+// Oana change
+- (void)setBackgroundImage:(UIImage *)backgroundImage andLogoImage:(UIImage *)logoImage {
+    self.snapShotImageView.image = backgroundImage;
+    
+    CGFloat yOffsetFromCenter = self.view.frame.size.height * 0.5;
+    self.logoImageView.frame = CGRectMake((self.view.frame.size.width - logoImage.size.width) / 2, yOffsetFromCenter, logoImage.size.width, logoImage.size.height);
+    self.logoImageView.image = logoImage;
+}
+///////
+
 - (void)updateViewConstraints
 {
     [super updateViewConstraints];
@@ -304,15 +318,33 @@ static NSInteger const kMaxNumberOfAllowedFailedAttempts = 10;
     [self.view addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"H:|-0-[snapShotImageView]-0-|"
                                                                       options:0
                                                                       metrics:nil
-                                                                        views:@{@"snapShotImageView" : self.snapShotImageView}]];
+                                                                        views:@{@"snapShotImageView":self.snapShotImageView}]];
     
     [self.view addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:|-0-[snapShotImageView]-0-|"
                                                                       options:0
                                                                       metrics:nil
-                                                                        views:@{@"snapShotImageView" : self.snapShotImageView}]];
+                                                                        views:@{@"snapShotImageView":self.snapShotImageView}]];
+    
+    CGFloat logoYOffsetFromCenter = - self.view.frame.size.height * 0.30;
+    
+    [self.view addConstraint:[NSLayoutConstraint constraintWithItem:self.logoImageView
+                                                          attribute:NSLayoutAttributeCenterY
+                                                          relatedBy:NSLayoutRelationEqual
+                                                             toItem:self.view
+                                                          attribute:NSLayoutAttributeCenterY
+                                                         multiplier:1
+                                                           constant:logoYOffsetFromCenter]];
+    
+    [self.view addConstraint:[NSLayoutConstraint constraintWithItem:self.logoImageView
+                                                          attribute:NSLayoutAttributeCenterX
+                                                          relatedBy:NSLayoutRelationEqual
+                                                             toItem:self.view
+                                                          attribute:NSLayoutAttributeCenterX
+                                                         multiplier:1
+                                                           constant:0]];
     //////
 	
-	CGFloat yOffsetFromCenter = -self.view.frame.size.height * 0.24;
+	CGFloat yOffsetFromCenter = -self.view.frame.size.height * 0.15; // Oana change
 	NSLayoutConstraint *enterPasscodeConstraintCenterX = [NSLayoutConstraint constraintWithItem: _enterPasscodeLabel
 																					  attribute: NSLayoutAttributeCenterX
 																					  relatedBy: NSLayoutRelationEqual
