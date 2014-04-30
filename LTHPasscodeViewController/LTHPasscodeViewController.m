@@ -159,7 +159,25 @@ static NSInteger const kMaxNumberOfAllowedFailedAttempts = 10;
     [super viewDidLoad];
 	
 	self.view.backgroundColor = kBackgroundColor;
+    
+    // Oana change
+    self.snapShotImageView = [[UIImageView alloc] initWithFrame:CGRectMake(0, 0, self.view.frame.size.width, self.view.frame.size.height)];
+    [self.view addSubview:self.snapShotImageView];
+    
+    [self.view addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"H:|-0-[snapShotImageView]-0-|"
+                                                                      options:0
+                                                                      metrics:nil
+                                                                        views:@{@"snapShotImageView" : self.snapShotImageView}]];
+    
+    [self.view addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:|-0-[snapShotImageView]-0-|"
+                                                                      options:0
+                                                                      metrics:nil
+                                                                        views:@{@"snapShotImageView" : self.snapShotImageView}]];
+    
+    [self.snapShotImageView setTranslatesAutoresizingMaskIntoConstraints:NO];
 
+    ///////
+    
 	_failedAttempts = 0;
 	_animatingView = [[UIView alloc] initWithFrame: self.view.frame];
 	[self.view addSubview: _animatingView];

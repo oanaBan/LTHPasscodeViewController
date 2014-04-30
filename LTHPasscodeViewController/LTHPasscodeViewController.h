@@ -26,6 +26,7 @@
 @property (nonatomic, strong) UIColor *navigationTitleColor;
 @property (nonatomic, assign) BOOL navigationBarTranslucent;
 @property (nonatomic, strong) UINavigationBar *navBar;
+@property (nonatomic, strong) UIImageView *snapShotImageView; // Oana change
 
 // Used when displaying the lock. Shown without a navBar, added directly on UIWindow
 - (void)showLockScreenWithAnimation:(BOOL)animated;
