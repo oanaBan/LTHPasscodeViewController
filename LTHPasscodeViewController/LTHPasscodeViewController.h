@@ -18,7 +18,7 @@
 
 @interface LTHPasscodeViewController : UIViewController
 
-@property (nonatomic, weak) UIViewController<LTHPasscodeViewControllerDelegate> *delegate;
+@property (nonatomic, unsafe_unretained) UIViewController<LTHPasscodeViewControllerDelegate> *delegate;
 
 // Customization
 @property (nonatomic, strong) UIColor *navigationBarTintColor;
