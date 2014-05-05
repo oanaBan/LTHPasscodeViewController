@@ -649,8 +649,8 @@ static NSInteger const kMaxNumberOfAllowedFailedAttempts = 10;
 		// Usually not more than one window is needed, but your needs may vary; modify below.
 		// Also, in case the control doesn't work properly,
 		// try it with .keyWindow before anything else, it might work.
-        //		UIWindow *mainWindow = [UIApplication sharedApplication].keyWindow;
-		UIWindow *mainWindow = [UIApplication sharedApplication].windows[0];
+        UIWindow *mainWindow = [UIApplication sharedApplication].keyWindow; // Oana change, this line was commented and the next one was uncommented
+        // UIWindow *mainWindow = [UIApplication sharedApplication].windows[0];
 		[mainWindow addSubview: self.view];
 		[[NSNotificationCenter defaultCenter] addObserver:self
 												 selector:@selector(statusBarFrameOrOrientationChanged:)
