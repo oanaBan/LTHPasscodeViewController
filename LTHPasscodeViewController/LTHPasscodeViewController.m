@@ -291,12 +291,6 @@
 }
 
 
-- (void)viewDidAppear:(BOOL)animated {
-    [super viewDidAppear:animated];
-//    NSLog(@"layout %@", [self.view performSelector:@selector(recursiveDescription)]);
-}
-
-
 - (void)viewWillDisappear:(BOOL)animated {
     [super viewWillDisappear:animated];
     if (!_displayedAsModal && !_displayedAsLockScreen) {
@@ -322,10 +316,10 @@
 	else if ([self.delegate respondsToSelector: @selector(passcodeViewControllerWasDismissed)]) {
 		[self.delegate performSelector: @selector(passcodeViewControllerWasDismissed)];
     }
-// Or, if you prefer by notifications:
-//	[[NSNotificationCenter defaultCenter] postNotificationName: @"dismissPasscodeViewController"
-//														object: self
-//													  userInfo: nil];
+    // Or, if you prefer by notifications:
+    //	[[NSNotificationCenter defaultCenter] postNotificationName: @"dismissPasscodeViewController"
+    //														object: self
+    //													  userInfo: nil];
 	if (_displayedAsModal) [self dismissViewControllerAnimated:YES completion:nil];
 	else if (!_displayedAsLockScreen) [self.navigationController popViewControllerAnimated:YES];
 }
@@ -374,10 +368,10 @@
         else if ([self.delegate respondsToSelector: @selector(passcodeViewControllerWasDismissed)]) {
 			[self.delegate performSelector: @selector(passcodeViewControllerWasDismissed)];
         }
-// Or, if you prefer by notifications:
-//		[[NSNotificationCenter defaultCenter] postNotificationName: @"dismissPasscodeViewController"
-//															object: self
-//														  userInfo: nil];
+        // Or, if you prefer by notifications:
+        //		[[NSNotificationCenter defaultCenter] postNotificationName: @"dismissPasscodeViewController"
+        //															object: self
+        //														  userInfo: nil];
 		if (_displayedAsLockScreen) {
 			[self.view removeFromSuperview];
 			[self removeFromParentViewController];
@@ -812,7 +806,7 @@
 	[self.view addConstraint:failedAttemptLabelCenterY];
 	[self.view addConstraint:failedAttemptLabelWidth];
 	[self.view addConstraint:failedAttemptLabelHeight];
-
+    
     //    NSLog(@"constraints %@", self.view.constraints);
     //        NSLog(@"_passcodeTextField %@", _passcodeTextField.constraints);
 }
@@ -821,89 +815,6 @@
 {
     //    NSLog(@"layout %@", [self.view performSelector:@selector(recursiveDescription)]);
 }
-
-- (void)cancelAndDismissMe {
-	_isCurrentlyOnScreen = NO;
-	[_passcodeTextField resignFirstResponder];
-	_isUserBeingAskedForNewPasscode = NO;
-	_isUserChangingPasscode = NO;
-	_isUserConfirmingPasscode = NO;
-	_isUserEnablingPasscode = NO;
-	_isUserTurningPasscodeOff = NO;
-    _isUserSwitchingBetweenPasscodeModes = NO;
-	[self resetUI];
-	
-	if ([self.delegate respondsToSelector: @selector(passcodeViewControllerWasDismissed)])
-		[self.delegate performSelector: @selector(passcodeViewControllerWasDismissed)];
-	// Or, if you prefer by notifications:
-    //	[[NSNotificationCenter defaultCenter] postNotificationName: @"dismissPasscodeViewController"
-    //														object: self
-    //													  userInfo: nil];
-	[self dismissViewControllerAnimated: YES completion: nil];
-}
-
-
-- (void)dismissMe {
-	_isCurrentlyOnScreen = NO;
-	[self resetUI];
-	[_passcodeTextField resignFirstResponder];
-	[UIView animateWithDuration: kLockAnimationDuration animations: ^{
-		if (_beingDisplayedAsLockScreen) {
-			if ([UIApplication sharedApplication].statusBarOrientation == UIInterfaceOrientationLandscapeLeft) {
-				self.view.center = CGPointMake(self.view.center.x * -1.f, self.view.center.y);
-			}
-			else if ([UIApplication sharedApplication].statusBarOrientation == UIInterfaceOrientationLandscapeRight) {
-				self.view.center = CGPointMake(self.view.center.x * 2.f, self.view.center.y);
-			}
-			else if ([UIApplication sharedApplication].statusBarOrientation == UIInterfaceOrientationPortrait) {
-				self.view.center = CGPointMake(self.view.center.x, self.view.center.y * -1.f);
-			}
-			else {
-				self.view.center = CGPointMake(self.view.center.x, self.view.center.y * 2.f);
-			}
-		}
-		else {
-			// Delete from Keychain
-			if (_isUserTurningPasscodeOff) {
-				[LTHPasscodeViewController deletePasscodeFromKeychain];
-			}
-			// Update the Keychain if adding or changing passcode
-			else {
-				[SFHFKeychainUtils storeUsername: [[NSUserDefaults standardUserDefaults] objectForKey:kKeychainUsername]
-									 andPassword: _tempPasscode
-								  forServiceName: [[NSUserDefaults standardUserDefaults] objectForKey:kKeychainServiceName]
-								  updateExisting: YES
-										   error: nil];
-                //finalize type switching
-                if (_isUserSwitchingBetweenPasscodeModes) {
-                    _isUserConfirmingPasscode = NO;
-                    [self setIsSimple:!self.isSimple];
-                }
-			}
-		}
-	} completion: ^(BOOL finished) {
-		if ([self.delegate respondsToSelector: @selector(passcodeViewControllerWasDismissed)])
-			[self.delegate performSelector: @selector(passcodeViewControllerWasDismissed)];
-		// Or, if you prefer by notifications:
-        //		[[NSNotificationCenter defaultCenter] postNotificationName: @"dismissPasscodeViewController"
-        //															object: self
-        //														  userInfo: nil];
-		if (_beingDisplayedAsLockScreen) {
-			[self.view removeFromSuperview];
-			[self removeFromParentViewController];
-		}
-		else {
-			[self dismissViewControllerAnimated: YES completion: nil];
-		}
-	}];
-	[[NSNotificationCenter defaultCenter] removeObserver: self
-													name: UIApplicationDidChangeStatusBarOrientationNotification
-												  object: nil];
-	[[NSNotificationCenter defaultCenter] removeObserver: self
-													name: UIApplicationDidChangeStatusBarFrameNotification
-												  object: nil];
-}
-
 
 #pragma mark - Displaying
 - (void)showLockScreenWithAnimation:(BOOL)animated {
@@ -1232,10 +1143,10 @@
             if ([self.delegate respondsToSelector: @selector(passcodeWasEnteredSuccessfully)]) {
                 [self.delegate performSelector: @selector(passcodeWasEnteredSuccessfully)];
             }
-//Or, if you prefer by notifications:
-//            [[NSNotificationCenter defaultCenter] postNotificationName: @"passcodeWasEnteredSuccessfully"
-//                                                                object: self
-//                                                              userInfo: nil];
+            //Or, if you prefer by notifications:
+            //            [[NSNotificationCenter defaultCenter] postNotificationName: @"passcodeWasEnteredSuccessfully"
+            //                                                                object: self
+            //                                                              userInfo: nil];
             [self _dismissMe];
         }
         else {
@@ -1320,10 +1231,10 @@
 		[self.delegate respondsToSelector: @selector(maxNumberOfFailedAttemptsReached)]) {
 		[self.delegate maxNumberOfFailedAttemptsReached];
     }
-//	Or, if you prefer by notifications:
-//	[[NSNotificationCenter defaultCenter] postNotificationName: @"maxNumberOfFailedAttemptsReached"
-//														object: self
-//													  userInfo: nil];
+    //	Or, if you prefer by notifications:
+    //	[[NSNotificationCenter defaultCenter] postNotificationName: @"maxNumberOfFailedAttemptsReached"
+    //														object: self
+    //													  userInfo: nil];
 	
 	if (_failedAttempts == 1) {
         _failedAttemptLabel.text =
@@ -1402,36 +1313,8 @@
 	_failedAttemptLabel.backgroundColor = [UIColor clearColor];
 	_failedAttemptLabel.layer.borderWidth = 0;
 	_failedAttemptLabel.layer.borderColor = [UIColor clearColor].CGColor;
-	_failedAttemptLabel.textColor = kLabelTextColor;
-}
-
-
-- (void)denyAccess {
-	[self resetTextFields];
-	_passcodeTextField.text = @"";
-    _OKButton.hidden = YES;
-    
-	_failedAttempts++;
-	
-	if (kMaxNumberOfAllowedFailedAttempts > 0 &&
-		_failedAttempts == kMaxNumberOfAllowedFailedAttempts &&
-		[self.delegate respondsToSelector: @selector(maxNumberOfFailedAttemptsReached)])
-		[self.delegate maxNumberOfFailedAttemptsReached];
-    //	Or, if you prefer by notifications:
-    //	[[NSNotificationCenter defaultCenter] postNotificationName: @"maxNumberOfFailedAttemptsReached"
-    //														object: self
-    //													  userInfo: nil];
-	
-	if (_failedAttempts == 1) _failedAttemptLabel.text = NSLocalizedString(@"1 Passcode Failed Attempt", @"");
-	else {
-		_failedAttemptLabel.text = [NSString stringWithFormat: NSLocalizedString(@"%i Passcode Failed Attempts", @""), _failedAttempts];
-	}
-	_failedAttemptLabel.layer.cornerRadius = kFailedAttemptLabelHeight * 0.65f;
-	_failedAttemptLabel.clipsToBounds = true;
-	_failedAttemptLabel.hidden = NO;
 	_failedAttemptLabel.textColor = _labelTextColor;
 }
-
 
 - (void)setIsSimple:(BOOL)isSimple inViewController:(UIViewController *)viewController asModal:(BOOL)isModal{
     if (!_isUserSwitchingBetweenPasscodeModes &&
