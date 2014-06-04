@@ -10,21 +10,22 @@
 #import "LTHPasscodeViewController.h"
 #import "LTHAppDelegate.h"
 
-@interface LTHDemoViewController () <LTHPasscodeViewControllerDelegate>
 
+@interface LTHDemoViewController () <LTHPasscodeViewControllerDelegate>
 @property (nonatomic, strong) UIButton *changePasscode;
 @property (nonatomic, strong) UIButton *enablePasscode;
 @property (nonatomic, strong) UIButton *testPasscode;
 @property (nonatomic, strong) UIButton *turnOffPasscode;
-@property (nonatomic, strong) UILabel *typeLabel;
+@property (nonatomic, strong) UILabel  *typeLabel;
 @property (nonatomic, strong) UISwitch *typeSwitch;
-
 @end
+
 
 @implementation LTHDemoViewController
 
+
 - (void)_refreshUI {
-	if ([LTHPasscodeViewController passcodeExistsInKeychain]) {
+	if ([LTHPasscodeViewController doesPasscodeExist]) {
 		_enablePasscode.enabled = NO;
 		_changePasscode.enabled = YES;
 		_turnOffPasscode.enabled = YES;
@@ -56,7 +57,8 @@
 	self.view.backgroundColor = [UIColor whiteColor];
 	
 	[LTHPasscodeViewController sharedUser].delegate = self;
-	
+	[LTHPasscodeViewController sharedUser].maxNumberOfAllowedFailedAttempts = 3;
+    
 	_changePasscode = [UIButton buttonWithType: UIButtonTypeCustom];
 	_enablePasscode = [UIButton buttonWithType: UIButtonTypeCustom];
 	_testPasscode = [UIButton buttonWithType: UIButtonTypeCustom];
@@ -121,49 +123,52 @@
 //	[av show];
 }
 
-- (void)_switchPasscodeType:(UISwitch *)sender
-{
-    [[LTHPasscodeViewController sharedUser] setIsSimple:sender.isOn];
+- (void)_switchPasscodeType:(UISwitch *)sender {
+    [[LTHPasscodeViewController sharedUser] setIsSimple:sender.isOn
+                                       inViewController:self
+                                                asModal:YES];
 }
 
 - (void)showLockViewForEnablingPasscode {
-	[[LTHPasscodeViewController sharedUser] showForEnablingPasscodeInViewController: self];
+	[[LTHPasscodeViewController sharedUser] showForEnablingPasscodeInViewController:self
+                                                                            asModal:YES];
 }
 
 
 - (void)showLockViewForTestingPasscode {
-	[[LTHPasscodeViewController sharedUser] showLockScreenWithAnimation: YES];
+	[[LTHPasscodeViewController sharedUser] showLockScreenWithAnimation:YES
+                                                             withLogout:NO
+                                                         andLogoutTitle:nil];
 }
 
 
 - (void)showLockViewForChangingPasscode {
-	[[LTHPasscodeViewController sharedUser] showForChangingPasscodeInViewController: self];
+	[[LTHPasscodeViewController sharedUser] showForChangingPasscodeInViewController:self asModal:NO];
 }
 
 
 - (void)showLockViewForTurningPasscodeOff {
-	[[LTHPasscodeViewController sharedUser] showForTurningOffPasscodeInViewController: self];
+	[[LTHPasscodeViewController sharedUser] showForDisablingPasscodeInViewController:self
+                                                                             asModal:NO];
 }
 
 # pragma mark - LTHPasscodeViewController Delegates -
 
-- (void)passcodeViewControllerWasDismissed {
-	NSLog(@"Passcode View Controller Was Dismissed");
+- (void)passcodeViewControllerWillClose {
+	NSLog(@"Passcode View Controller Will Be Closed");
 	[self _refreshUI];
 }
 
-- (void)maxNumberOfFailedAttemptsReached
-{
+- (void)maxNumberOfFailedAttemptsReached {
+    [LTHPasscodeViewController deletePasscodeAndClose];
 	NSLog(@"Max Number of Failed Attemps Reached");
 }
 
-- (void)passcodeWasEnteredSuccessfully
-{
+- (void)passcodeWasEnteredSuccessfully {
 	NSLog(@"Passcode Was Entered Successfully");
 }
 
-- (void)logoutButtonWasPressed
-{
+- (void)logoutButtonWasPressed {
 	NSLog(@"Logout Button Was Pressed");
 }
 
