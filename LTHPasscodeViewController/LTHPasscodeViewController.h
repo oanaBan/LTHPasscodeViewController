@@ -80,15 +80,10 @@
 
 @interface LTHPasscodeViewController : UIViewController
 
-// Customization
-@property (nonatomic, strong) UIImageView *snapShotImageView; // Oana change
-@property (nonatomic, strong) UIImageView *logoImageView;// Oana change
-
-- (void)setBackgroundImage:(UIImage *)backgroundImage andLogoImage:(UIImage *)logoImage; // Oana change
 /**
  @brief   The delegate.
  */
-@property (nonatomic, unsafe_unretained) id<LTHPasscodeViewControllerDelegate> delegate; // Oana change
+@property (nonatomic, weak) id<LTHPasscodeViewControllerDelegate> delegate;
 /**
  @brief The gap between the passcode digits.
  */
@@ -218,6 +213,11 @@
  */
 @property (nonatomic, assign) BOOL hidesBackButton;
 
+@property (nonatomic, strong) UIImageView *snapShotImageView; // Oana change
+@property (nonatomic, strong) UIImageView *logoImageView;// Oana change
+
+- (void)setBackgroundImage:(UIImage *)backgroundImage andLogoImage:(UIImage *)logoImage; // Oana change
+
 /**
  @brief				Used for displaying the lock. The passcode view is added directly on the keyWindow.
  @param hasLogout   Set to @c YES for a navBar with a Logout button, set to @c NO for no navBar.
@@ -241,9 +241,6 @@
  */
 - (void)showForChangingPasscodeInViewController:(UIViewController *)viewController DEPRECATED_MSG_ATTRIBUTE(" Please use showForDisablingPasscodeInViewController:asModal:");
 /**
- *  These should have been private, but since I didn't do that from the start,
- *  consider them helper methods, should they serve you in any way.
- *  I don't want to break backwards compatibility.
  @brief				   Used for disabling the passcode.
  @details              The back bar button is hidden by default. Set @c hidesBackButton to @c NO if you want it to be visible.
  @param	viewController The view controller where the passcode view controller will be displayed.

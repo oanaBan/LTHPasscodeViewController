@@ -259,7 +259,6 @@
 #pragma mark - View life
 - (void)viewDidLoad {
     [super viewDidLoad];
-	
 	self.view.backgroundColor = _backgroundColor;
     
     // Oana change
@@ -291,6 +290,12 @@
 }
 
 
+- (void)viewDidAppear:(BOOL)animated {
+    [super viewDidAppear:animated];
+    //    NSLog(@"layout %@", [self.view performSelector:@selector(recursiveDescription)]);
+}
+
+
 - (void)viewWillDisappear:(BOOL)animated {
     [super viewWillDisappear:animated];
     if (!_displayedAsModal && !_displayedAsLockScreen) {
@@ -298,6 +303,15 @@
     }
 }
 
+// Oana change
+- (void)setBackgroundImage:(UIImage *)backgroundImage andLogoImage:(UIImage *)logoImage {
+    self.snapShotImageView.image = backgroundImage;
+    
+    CGFloat yOffsetFromCenter = self.view.frame.size.height * 0.5;
+    self.logoImageView.frame = CGRectMake((self.view.frame.size.width - logoImage.size.width) / 2, yOffsetFromCenter, logoImage.size.width, logoImage.size.height);
+    self.logoImageView.image = logoImage;
+}
+///////
 
 - (void)_cancelAndDismissMe {
 	_isCurrentlyOnScreen = NO;
@@ -506,31 +520,8 @@
     
     _OKButton.hidden = YES;
     _OKButton.translatesAutoresizingMaskIntoConstraints = NO;
-	
-	_passcodeTextField = [[UITextField alloc] initWithFrame: CGRectZero];
-	_passcodeTextField.delegate = self;
-    _passcodeTextField.secureTextEntry = YES;
-    _passcodeTextField.translatesAutoresizingMaskIntoConstraints = NO;
-    
-	[_passcodeTextField becomeFirstResponder];
-	
-	_enterPasscodeLabel.text = _isUserChangingPasscode ? NSLocalizedString(@"Enter your old passcode", @"") : NSLocalizedString(@"Enter your passcode", @"");
-	
-	_enterPasscodeLabel.translatesAutoresizingMaskIntoConstraints = NO;
-	_failedAttemptLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    
-    [self.view setNeedsUpdateConstraints];
 }
 
-// Oana change
-- (void)setBackgroundImage:(UIImage *)backgroundImage andLogoImage:(UIImage *)logoImage {
-    self.snapShotImageView.image = backgroundImage;
-    
-    CGFloat yOffsetFromCenter = self.view.frame.size.height * 0.5;
-    self.logoImageView.frame = CGRectMake((self.view.frame.size.width - logoImage.size.width) / 2, yOffsetFromCenter, logoImage.size.width, logoImage.size.height);
-    self.logoImageView.image = logoImage;
-}
-///////
 
 - (void)updateViewConstraints {
     [super updateViewConstraints];
@@ -612,7 +603,6 @@
                                  attribute: NSLayoutAttributeCenterY
                                 multiplier: 1.0f
                                   constant: yOffsetFromCenter];
-    
     [self.view addConstraint: enterPasscodeConstraintCenterX];
     [self.view addConstraint: enterPasscodeConstraintCenterY];
 	
@@ -808,13 +798,9 @@
 	[self.view addConstraint:failedAttemptLabelHeight];
     
     //    NSLog(@"constraints %@", self.view.constraints);
-    //        NSLog(@"_passcodeTextField %@", _passcodeTextField.constraints);
+    //    NSLog(@"_passcodeTextField %@", _passcodeTextField.constraints);
 }
 
-- (void)viewDidAppear:(BOOL)animated
-{
-    //    NSLog(@"layout %@", [self.view performSelector:@selector(recursiveDescription)]);
-}
 
 #pragma mark - Displaying
 - (void)showLockScreenWithAnimation:(BOOL)animated {
@@ -838,8 +824,11 @@
 		// Usually not more than one window is needed, but your needs may vary; modify below.
 		// Also, in case the control doesn't work properly,
 		// try it with .keyWindow before anything else, it might work.
+        //		UIWindow *mainWindow = [UIApplication sharedApplication].keyWindow;
+        
         UIWindow *mainWindow = [UIApplication sharedApplication].keyWindow; // Oana change, this line was commented and the next one was uncommented
-        // UIWindow *mainWindow = [UIApplication sharedApplication].windows[0];
+        
+        //		UIWindow *mainWindow = [UIApplication sharedApplication].windows[0];
 		[mainWindow addSubview: self.view];
 		[mainWindow.rootViewController addChildViewController: self];
 		// All this hassle because a view added to UIWindow does not rotate automatically
@@ -1316,6 +1305,7 @@
 	_failedAttemptLabel.textColor = _labelTextColor;
 }
 
+
 - (void)setIsSimple:(BOOL)isSimple inViewController:(UIViewController *)viewController asModal:(BOOL)isModal{
     if (!_isUserSwitchingBetweenPasscodeModes &&
         !_isUserBeingAskedForNewPasscode &&
@@ -1592,8 +1582,6 @@
 	
     [self setIfNotEqualTransform: transform
 						   frame: self.view.window.bounds];
-    
-    [self.view layoutIfNeeded];
 }
 
 
