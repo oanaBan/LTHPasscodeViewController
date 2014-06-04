@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name         = 'LTHPasscodeViewController'
-  s.version      = '1.0.4'
+  s.version      = '3.0.2'
   s.license  = 'MIT'
   s.platform     =  :ios
   s.homepage = 'https://github.com/oanaBan/LTHPasscodeViewController'
@@ -11,7 +11,7 @@ Pod::Spec.new do |s|
   }
   s.source = {
     :git => 'https://github.com/oanaBan/LTHPasscodeViewController.git',
-    :tag => '1.0.4'
+    :tag => '3.0.2'
   }
   s.source_files = 'LTHPasscodeViewController/*.{h,m}'
 end
