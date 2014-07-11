@@ -7,7 +7,7 @@
 //
 
 #import "LTHPasscodeViewController.h"
-#import "SFHFKeychainUtils.h"
+#import "LTHKeychainUtils.h"
 
 #define DegreesToRadians(x) ((x) * M_PI / 180.0)
 
@@ -64,11 +64,6 @@
 
 
 #pragma mark - Public, class methods
-+ (BOOL)passcodeExistsInKeychain {
-	return [self doesPasscodeExist];
-}
-
-
 + (BOOL)doesPasscodeExist {
 	return [[LTHPasscodeViewController sharedUser] _doesPasscodeExist];
 }
@@ -101,11 +96,6 @@
 
 + (BOOL)didPasscodeTimerEnd {
 	return [[LTHPasscodeViewController sharedUser] _didPasscodeTimerEnd];
-}
-
-
-+ (void)deletePasscodeFromKeychain {
-	[[LTHPasscodeViewController sharedUser] _deletePasscode];
 }
 
 
@@ -143,7 +133,7 @@
     }
     
 	NSString *keychainValue =
-    [SFHFKeychainUtils getPasswordForUsername:_keychainTimerDurationUsername
+    [LTHKeychainUtils getPasswordForUsername:_keychainTimerDurationUsername
                                andServiceName:_keychainServiceName
                                         error:nil];
 	if (!keychainValue) return -1;
@@ -159,7 +149,7 @@
         return;
     }
     
-    [SFHFKeychainUtils storeUsername:_keychainTimerDurationUsername
+    [LTHKeychainUtils storeUsername:_keychainTimerDurationUsername
 						 andPassword:[NSString stringWithFormat: @"%.6f", duration]
 					  forServiceName:_keychainServiceName
 					  updateExisting:YES
@@ -174,7 +164,7 @@
     }
     
     NSString *keychainValue =
-    [SFHFKeychainUtils getPasswordForUsername:_keychainTimerStartUsername
+    [LTHKeychainUtils getPasswordForUsername:_keychainTimerStartUsername
                                andServiceName:_keychainServiceName
                                         error:nil];
 	if (!keychainValue) return -1;
@@ -190,7 +180,7 @@
         return;
     }
     
-	[SFHFKeychainUtils storeUsername:_keychainTimerStartUsername
+	[LTHKeychainUtils storeUsername:_keychainTimerStartUsername
 						 andPassword:[NSString stringWithFormat: @"%.6f",
                                       [NSDate timeIntervalSinceReferenceDate]]
 					  forServiceName:_keychainServiceName
@@ -222,7 +212,7 @@
         return;
     }
     
-	[SFHFKeychainUtils deleteItemForUsername:_keychainPasscodeUsername
+	[LTHKeychainUtils deleteItemForUsername:_keychainPasscodeUsername
 							  andServiceName:_keychainServiceName
 									   error:nil];
 }
@@ -236,7 +226,7 @@
         return;
     }
     
-    [SFHFKeychainUtils storeUsername:_keychainPasscodeUsername
+    [LTHKeychainUtils storeUsername:_keychainPasscodeUsername
                          andPassword:passcode
                       forServiceName:_keychainServiceName
                       updateExisting:YES
@@ -250,7 +240,7 @@
 		return [self.delegate passcode];
 	}
 	
-	return [SFHFKeychainUtils getPasswordForUsername:_keychainPasscodeUsername
+	return [LTHKeychainUtils getPasswordForUsername:_keychainPasscodeUsername
 									  andServiceName:_keychainServiceName
 											   error:nil];
 }
@@ -284,7 +274,6 @@
 	_passcodeTextField.delegate = self;
     _passcodeTextField.secureTextEntry = YES;
     _passcodeTextField.translatesAutoresizingMaskIntoConstraints = NO;
-	[_passcodeTextField becomeFirstResponder];
     
     [self.view setNeedsUpdateConstraints];
 }
@@ -292,7 +281,9 @@
 
 - (void)viewDidAppear:(BOOL)animated {
     [super viewDidAppear:animated];
-    //    NSLog(@"layout %@", [self.view performSelector:@selector(recursiveDescription)]);
+
+//    NSLog(@"layout %@", [self.view performSelector:@selector(recursiveDescription)]);
+    [_passcodeTextField becomeFirstResponder];
 }
 
 
@@ -327,19 +318,17 @@
     if ([self.delegate respondsToSelector: @selector(passcodeViewControllerWillClose)]) {
 		[self.delegate performSelector: @selector(passcodeViewControllerWillClose)];
     }
-	else if ([self.delegate respondsToSelector: @selector(passcodeViewControllerWasDismissed)]) {
-		[self.delegate performSelector: @selector(passcodeViewControllerWasDismissed)];
-    }
-    // Or, if you prefer by notifications:
-    //	[[NSNotificationCenter defaultCenter] postNotificationName: @"dismissPasscodeViewController"
-    //														object: self
-    //													  userInfo: nil];
+// Or, if you prefer by notifications:
+//	[[NSNotificationCenter defaultCenter] postNotificationName: @"passcodeViewControllerWillClose"
+//														object: self
+//													  userInfo: nil];
 	if (_displayedAsModal) [self dismissViewControllerAnimated:YES completion:nil];
 	else if (!_displayedAsLockScreen) [self.navigationController popViewControllerAnimated:YES];
 }
 
 
 - (void)_dismissMe {
+    _failedAttempts = 0;
 	_isCurrentlyOnScreen = NO;
 	[self _resetUI];
 	[_passcodeTextField resignFirstResponder];
@@ -379,13 +368,10 @@
         if ([self.delegate respondsToSelector: @selector(passcodeViewControllerWillClose)]) {
             [self.delegate performSelector: @selector(passcodeViewControllerWillClose)];
         }
-        else if ([self.delegate respondsToSelector: @selector(passcodeViewControllerWasDismissed)]) {
-			[self.delegate performSelector: @selector(passcodeViewControllerWasDismissed)];
-        }
-        // Or, if you prefer by notifications:
-        //		[[NSNotificationCenter defaultCenter] postNotificationName: @"dismissPasscodeViewController"
-        //															object: self
-        //														  userInfo: nil];
+// Or, if you prefer by notifications:
+//		[[NSNotificationCenter defaultCenter] postNotificationName: @"passcodeViewControllerWillClose"
+//															object: self
+//														  userInfo: nil];
 		if (_displayedAsLockScreen) {
 			[self.view removeFromSuperview];
 			[self removeFromParentViewController];
@@ -447,61 +433,38 @@
 	_failedAttemptLabel.textAlignment = NSTextAlignmentCenter;
 	[_animatingView addSubview: _failedAttemptLabel];
     
-    _enterPasscodeLabel.text = _isUserChangingPasscode ? NSLocalizedStringFromTable(@"Enter your old passcode", _localizationTableName, @"") : NSLocalizedStringFromTable(@"Enter your passcode", _localizationTableName, @"");
+    _enterPasscodeLabel.text = _isUserChangingPasscode ? NSLocalizedStringFromTable(self.enterOldPasscodeString, _localizationTableName, @"") : NSLocalizedStringFromTable(self.enterPasscodeString, _localizationTableName, @"");
     _enterPasscodeLabel.translatesAutoresizingMaskIntoConstraints = NO;
 	_failedAttemptLabel.translatesAutoresizingMaskIntoConstraints = NO;
 }
 
 
 - (void)_setupDigitFields {
-    _firstDigitTextField = [[UITextField alloc] initWithFrame:CGRectZero];
-    _firstDigitTextField.backgroundColor = _passcodeBackgroundColor;
-    _firstDigitTextField.textAlignment = NSTextAlignmentCenter;
-    _firstDigitTextField.text = _passcodeCharacter;
-    _firstDigitTextField.textColor = _passcodeTextColor;
-    _firstDigitTextField.font = _passcodeFont;
-    _firstDigitTextField.secureTextEntry = NO;
-    [_firstDigitTextField setBorderStyle:UITextBorderStyleNone];
-    _firstDigitTextField.userInteractionEnabled = NO;
+    _firstDigitTextField = [self _makeDigitField];
     [_animatingView addSubview:_firstDigitTextField];
     
-    _secondDigitTextField = [[UITextField alloc] initWithFrame:CGRectZero];
-    _secondDigitTextField.backgroundColor = _passcodeBackgroundColor;
-    _secondDigitTextField.textAlignment = NSTextAlignmentCenter;
-    _secondDigitTextField.text = _passcodeCharacter;
-    _secondDigitTextField.textColor = _passcodeTextColor;
-    _secondDigitTextField.font = _passcodeFont;
-    _secondDigitTextField.secureTextEntry = NO;
-    [_secondDigitTextField setBorderStyle:UITextBorderStyleNone];
-    _secondDigitTextField.userInteractionEnabled = NO;
+    _secondDigitTextField = [self _makeDigitField];
     [_animatingView addSubview:_secondDigitTextField];
     
-    _thirdDigitTextField = [[UITextField alloc] initWithFrame:CGRectZero];
-    _thirdDigitTextField.backgroundColor = _passcodeBackgroundColor;
-    _thirdDigitTextField.textAlignment = NSTextAlignmentCenter;
-    _thirdDigitTextField.text = _passcodeCharacter;
-    _thirdDigitTextField.textColor = _passcodeTextColor;
-    _thirdDigitTextField.font = _passcodeFont;
-    _thirdDigitTextField.secureTextEntry = NO;
-    [_thirdDigitTextField setBorderStyle:UITextBorderStyleNone];
-    _thirdDigitTextField.userInteractionEnabled = NO;
+    _thirdDigitTextField = [self _makeDigitField];
     [_animatingView addSubview:_thirdDigitTextField];
     
-    _fourthDigitTextField = [[UITextField alloc] initWithFrame:CGRectZero];
-    _fourthDigitTextField.backgroundColor = _passcodeBackgroundColor;
-    _fourthDigitTextField.textAlignment = NSTextAlignmentCenter;
-    _fourthDigitTextField.text = _passcodeCharacter;
-    _fourthDigitTextField.textColor = _passcodeTextColor;
-    _fourthDigitTextField.font = _passcodeFont;
-    _fourthDigitTextField.secureTextEntry = NO;
-    [_fourthDigitTextField setBorderStyle:UITextBorderStyleNone];
-    _fourthDigitTextField.userInteractionEnabled = NO;
+    _fourthDigitTextField = [self _makeDigitField];
     [_animatingView addSubview:_fourthDigitTextField];
-    
-    _firstDigitTextField.translatesAutoresizingMaskIntoConstraints = NO;
-    _secondDigitTextField.translatesAutoresizingMaskIntoConstraints = NO;
-    _thirdDigitTextField.translatesAutoresizingMaskIntoConstraints = NO;
-    _fourthDigitTextField.translatesAutoresizingMaskIntoConstraints = NO;
+}
+
+-(UITextField *)_makeDigitField{
+    UITextField *field = [[UITextField alloc] initWithFrame:CGRectZero];
+    field.backgroundColor = _passcodeBackgroundColor;
+    field.textAlignment = NSTextAlignmentCenter;
+    field.text = _passcodeCharacter;
+    field.textColor = _passcodeTextColor;
+    field.font = _passcodeFont;
+    field.secureTextEntry = NO;
+    field.userInteractionEnabled = NO;
+    field.translatesAutoresizingMaskIntoConstraints = NO;
+    [field setBorderStyle:UITextBorderStyleNone];
+    return field;
 }
 
 
@@ -803,13 +766,6 @@
 
 
 #pragma mark - Displaying
-- (void)showLockScreenWithAnimation:(BOOL)animated {
-	[self.navBar removeFromSuperview];
-	self.navBar = nil;
-	[self showLockScreenWithAnimation:animated withLogout:NO andLogoutTitle:nil];
-}
-
-
 - (void)showLockScreenWithAnimation:(BOOL)animated withLogout:(BOOL)hasLogout andLogoutTitle:(NSString*)logoutTitle {
 	[self _prepareAsLockScreen];
 	// In case the user leaves the app while the lockscreen is already active.
@@ -910,6 +866,8 @@
 		[viewController.navigationController pushViewController:self
 													   animated:YES];
         self.navigationItem.hidesBackButton = _hidesBackButton;
+        [self rotateAccordingToStatusBarOrientationAndSupportedOrientations];
+        
 		return;
 	}
 	UINavigationController *navController =
@@ -939,30 +897,12 @@
 }
 
 
-- (void)showForEnablingPasscodeInViewController:(UIViewController *)viewController {
-	[self showForEnablingPasscodeInViewController:viewController
-										  asModal:YES];
-}
-
-
-- (void)showForChangingPasscodeInViewController:(UIViewController *)viewController {
-	[self showForChangingPasscodeInViewController:viewController
-										  asModal:YES];
-}
-
-
-- (void)showForTurningOffPasscodeInViewController:(UIViewController *)viewController {
-	[self showForDisablingPasscodeInViewController:viewController
-                                           asModal:YES];
-}
-
-
 - (void)showForEnablingPasscodeInViewController:(UIViewController *)viewController
 										asModal:(BOOL)isModal {
 	_displayedAsModal = isModal;
 	[self _prepareForEnablingPasscode];
 	[self _prepareNavigationControllerWithController:viewController];
-	self.title = NSLocalizedStringFromTable(@"Enable Passcode", _localizationTableName, @"");
+	self.title = NSLocalizedStringFromTable(self.enablePasscodeString, _localizationTableName, @"");
 }
 
 
@@ -971,7 +911,7 @@
 	_displayedAsModal = isModal;
 	[self _prepareForChangingPasscode];
 	[self _prepareNavigationControllerWithController:viewController];
-	self.title = NSLocalizedStringFromTable(@"Change Passcode", _localizationTableName, @"");
+	self.title = NSLocalizedStringFromTable(self.changePasscodeString, _localizationTableName, @"");
 }
 
 
@@ -980,7 +920,7 @@
 	_displayedAsModal = isModal;
 	[self _prepareForTurningOffPasscode];
 	[self _prepareNavigationControllerWithController:viewController];
-	self.title = NSLocalizedStringFromTable(@"Turn Off Passcode", _localizationTableName, @"");
+	self.title = NSLocalizedStringFromTable(self.turnOffPasscodeString, _localizationTableName, @"");
 }
 
 
@@ -1259,24 +1199,28 @@
 	[self _resetTextFields];
 	_failedAttemptLabel.backgroundColor	= _failedAttemptLabelBackgroundColor;
 	_failedAttemptLabel.textColor = _failedAttemptLabelTextColor;
-	_failedAttempts = 0;
-	_failedAttemptLabel.hidden = YES;
+    if (_failedAttempts == 0) _failedAttemptLabel.hidden = YES;
+	
 	_passcodeTextField.text = @"";
 	if (_isUserConfirmingPasscode) {
 		if (_isUserEnablingPasscode) {
-            _enterPasscodeLabel.text = NSLocalizedStringFromTable(@"Re-enter your passcode", _localizationTableName, @"");
+            _enterPasscodeLabel.text = NSLocalizedStringFromTable(self.reenterPasscodeString, _localizationTableName, @"");
         }
 		else if (_isUserChangingPasscode) {
-            _enterPasscodeLabel.text = NSLocalizedStringFromTable(@"Re-enter your new passcode", _localizationTableName, @"");
+            _enterPasscodeLabel.text = NSLocalizedStringFromTable(self.reenterNewPasscodeString, _localizationTableName, @"");
         }
 	}
 	else if (_isUserBeingAskedForNewPasscode) {
 		if (_isUserEnablingPasscode || _isUserChangingPasscode) {
-			_enterPasscodeLabel.text = NSLocalizedStringFromTable(@"Enter your new passcode", _localizationTableName, @"");
+			_enterPasscodeLabel.text = NSLocalizedStringFromTable(self.enterNewPasscodeString, _localizationTableName, @"");
 		}
 	}
 	else {
-        _enterPasscodeLabel.text = NSLocalizedStringFromTable(@"Enter your passcode", _localizationTableName, @"");
+        if (_isUserChangingPasscode) {
+            _enterPasscodeLabel.text = NSLocalizedStringFromTable(self.enterOldPasscodeString, _localizationTableName, @"");
+        } else {
+            _enterPasscodeLabel.text = NSLocalizedStringFromTable(self.enterPasscodeString, _localizationTableName, @"");
+        }
     }
 	
 	// Make sure nav bar for logout is off the screen
@@ -1292,10 +1236,10 @@
 	_passcodeTextField.text = @"";
 	// If there's no passcode saved in Keychain,
     // the user is adding one for the first time, otherwise he's changing his passcode.
-	NSString *savedPasscode = [SFHFKeychainUtils getPasswordForUsername: _keychainPasscodeUsername
+	NSString *savedPasscode = [LTHKeychainUtils getPasswordForUsername: _keychainPasscodeUsername
 														 andServiceName: _keychainServiceName
 																  error: nil];
-	_enterPasscodeLabel.text = savedPasscode.length == 0 ? NSLocalizedStringFromTable(@"Enter your passcode", _localizationTableName, @"") : NSLocalizedStringFromTable(@"Enter your new passcode", _localizationTableName, @"");
+	_enterPasscodeLabel.text = savedPasscode.length == 0 ? NSLocalizedStringFromTable(self.enterPasscodeString, _localizationTableName, @"") : NSLocalizedStringFromTable(self.enterNewPasscodeString, _localizationTableName, @"");
 	
 	_failedAttemptLabel.hidden = NO;
 	_failedAttemptLabel.text = NSLocalizedStringFromTable(@"Passcodes did not match. Try again.", _localizationTableName, @"");
@@ -1327,7 +1271,8 @@
 - (BOOL)isSimple {
     // Is in process of changing, but not finished ->
     // we need to display UI accordingly
-    if (_isUserSwitchingBetweenPasscodeModes && (_isUserBeingAskedForNewPasscode || _isUserConfirmingPasscode)) {
+    if (_isUserSwitchingBetweenPasscodeModes &&
+        (_isUserBeingAskedForNewPasscode || _isUserConfirmingPasscode)) {
         return !_isSimple;
     }
     
@@ -1374,7 +1319,7 @@
             [_passcodeTextField resignFirstResponder];
             [self.navigationController popViewControllerAnimated:NO];
             // This is like this because it screws up the navigation stack otherwise
-            [self performSelector:@selector(showLockScreenWithAnimation:)
+            [self performSelector:@selector(showLockScreenWithAnimation:withLogout:andLogoutTitle:)
                        withObject:@(NO)
                        afterDelay:0.0];
         }
@@ -1442,6 +1387,16 @@
 
 
 - (void)_loadDefaults {
+    [self _loadMiscDefaults];
+    [self _loadStringDefaults];
+    [self _loadGapDefaults];
+    [self _loadFontDefaults];
+    [self _loadColorDefaults];
+    [self _loadKeychainDefaults];
+}
+
+
+- (void)_loadMiscDefaults {
     _coverViewTag = 994499;
     _lockAnimationDuration = 0.25;
     _slideAnimationDuration = 0.15;
@@ -1449,8 +1404,24 @@
     _usesKeychain = YES;
     _displayedAsModal = YES;
     _hidesBackButton = YES;
-    
-    // Gaps
+    _passcodeCharacter = @"\u2014"; // A longer "-";
+    _localizationTableName = @"LTHPasscodeViewController";
+}
+
+
+- (void)_loadStringDefaults {
+    self.enterOldPasscodeString = @"Enter your old passcode";
+    self.enterPasscodeString = @"Enter your passcode";
+    self.enablePasscodeString = @"Enable Passcode";
+    self.changePasscodeString = @"Change Passcode";
+    self.turnOffPasscodeString = @"Turn Off Passcode";
+    self.reenterPasscodeString = @"Re-enter your passcode";
+    self.reenterNewPasscodeString = @"Re-enter your new passcode";
+    self.enterNewPasscodeString = @"Enter your new passcode";
+}
+
+
+- (void)_loadGapDefaults {
     _iPadFontSizeModifier = 1.5;
     _iPhoneHorizontalGap = 40.0;
     _horizontalGap = UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad ? _iPhoneHorizontalGap * _iPadFontSizeModifier : _iPhoneHorizontalGap;
@@ -1458,8 +1429,10 @@
     _modifierForBottomVerticalGap = UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad ? 2.6f : 3.0f;
     _failedAttemptLabelGap = _verticalGap * _modifierForBottomVerticalGap - 2.0f;
     _passcodeOverlayHeight = UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad ? 96.0f : 40.0f;
-    
-    // Fonts
+}
+
+
+- (void)_loadFontDefaults {
     _labelFontSize = 15.0;
     _passcodeFontSize = 33.0;
     _labelFont = UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad ?
@@ -1468,26 +1441,29 @@
     _passcodeFont = UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad ?
     [UIFont fontWithName: @"AvenirNext-Regular" size: _passcodeFontSize * _iPadFontSizeModifier] :
     [UIFont fontWithName: @"AvenirNext-Regular" size: _passcodeFontSize];
-    
-    // Colors
+}
+
+
+- (void)_loadColorDefaults {
+    // Backgrounds
     _backgroundColor =  [UIColor colorWithRed:0.97f green:0.97f blue:1.0f alpha:1.00f];
     _passcodeBackgroundColor = [UIColor clearColor];
     _coverViewBackgroundColor = [UIColor colorWithRed:0.97f green:0.97f blue:1.0f alpha:1.00f];
     _failedAttemptLabelBackgroundColor =  [UIColor colorWithRed:0.8f green:0.1f blue:0.2f alpha:1.000f];
     _enterPasscodeLabelBackgroundColor = [UIColor clearColor];
     
-    // Text Colors
+    // Text
     _labelTextColor = [UIColor colorWithWhite:0.31f alpha:1.0f];
     _passcodeTextColor = [UIColor colorWithWhite:0.31f alpha:1.0f];
     _failedAttemptLabelTextColor = [UIColor whiteColor];
-    
-    // Keychain & misc
+}
+
+
+- (void)_loadKeychainDefaults {
     _keychainPasscodeUsername = @"demoPasscode";
     _keychainTimerStartUsername = @"demoPasscodeTimerStart";
     _keychainServiceName = @"demoServiceName";
     _keychainTimerDurationUsername = @"passcodeTimerDuration";
-    _passcodeCharacter = @"\u2014"; // A longer "-";
-    _localizationTableName = @"LTHPasscodeViewController";
 }
 
 
