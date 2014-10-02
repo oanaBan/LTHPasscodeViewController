@@ -771,6 +771,10 @@
 
 
 #pragma mark - Displaying
+- (void)showLockScreenWithAnimation {
+    [self showLockScreenWithAnimation:NO withLogout:NO andLogoutTitle:nil];
+}
+
 - (void)showLockScreenWithAnimation:(BOOL)animated withLogout:(BOOL)hasLogout andLogoutTitle:(NSString*)logoutTitle {
     [self _prepareAsLockScreen];
     // In case the user leaves the app while the lockscreen is already active.
@@ -1327,8 +1331,8 @@
             [_passcodeTextField resignFirstResponder];
             [self.navigationController popViewControllerAnimated:NO];
             // This is like this because it screws up the navigation stack otherwise
-            [self performSelector:@selector(showLockScreenWithAnimation:withLogout:andLogoutTitle:)
-                       withObject:@(NO)
+            [self performSelector:@selector(showLockScreenWithAnimation)
+                       withObject:nil
                        afterDelay:0.0];
         }
         else {
