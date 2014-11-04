@@ -872,6 +872,7 @@
     [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemCancel
                                                   target:self
                                                   action:@selector(_cancelAndDismissMe)];
+    self.navigationItem.rightBarButtonItem.tintColor = [UIColor colorWithRed:101.0/255.0 green:204.0/255.0 blue:206.0/255.0 alpha:1];// Oana change
     
     if (!_displayedAsModal) {
         [viewController.navigationController pushViewController:self
