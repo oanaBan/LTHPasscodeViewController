@@ -8,8 +8,13 @@
 
 #import "LTHPasscodeViewController.h"
 #import "LTHKeychainUtils.h"
+#if !(TARGET_IPHONE_SIMULATOR)
+#import <LocalAuthentication/LocalAuthentication.h>
+#endif
 
 #define DegreesToRadians(x) ((x) * M_PI / 180.0)
+#define LTHiOS8 ([[[UIDevice currentDevice] systemVersion] compare:@"8.0" \
+options:NSNumericSearch] != NSOrderedAscending)
 
 #if __IPHONE_OS_VERSION_MIN_REQUIRED >= 70000
 #define kPasscodeCharWidth [_passcodeCharacter sizeWithAttributes: @{NSFontAttributeName : _passcodeFont}].width
@@ -28,6 +33,7 @@
 @property (nonatomic, strong) UIView      *coverView;
 @property (nonatomic, strong) UIView      *animatingView;
 @property (nonatomic, strong) UIView      *complexPasscodeOverlayView;
+@property (nonatomic, strong) UIImageView *backgroundImageView;
 
 @property (nonatomic, strong) UITextField *passcodeTextField;
 @property (nonatomic, strong) UITextField *firstDigitTextField;
@@ -49,6 +55,7 @@
 @property (nonatomic, assign) BOOL        usesKeychain;
 @property (nonatomic, assign) BOOL        displayedAsModal;
 @property (nonatomic, assign) BOOL        displayedAsLockScreen;
+@property (nonatomic, assign) BOOL        isUsingNavbar;
 @property (nonatomic, assign) BOOL        isCurrentlyOnScreen;
 @property (nonatomic, assign) BOOL        isSimple;// YES by default
 @property (nonatomic, assign) BOOL        isUserConfirmingPasscode;
@@ -58,6 +65,12 @@
 @property (nonatomic, assign) BOOL        isUserEnablingPasscode;
 @property (nonatomic, assign) BOOL        isUserSwitchingBetweenPasscodeModes;// simple/complex
 @property (nonatomic, assign) BOOL        timerStartInSeconds;
+@property (nonatomic, assign) BOOL        isUsingTouchID;
+@property (nonatomic, assign) BOOL        useFallbackPasscode;
+
+#if !(TARGET_IPHONE_SIMULATOR)
+@property (nonatomic, strong) LAContext   *context;
+#endif
 @end
 
 @implementation LTHPasscodeViewController
@@ -65,57 +78,67 @@
 
 #pragma mark - Public, class methods
 + (BOOL)doesPasscodeExist {
-    return [[LTHPasscodeViewController sharedUser] _doesPasscodeExist];
+	return [[self sharedUser] _doesPasscodeExist];
 }
 
 
 + (NSString *)passcode {
-    return [[LTHPasscodeViewController sharedUser] _passcode];
+	return [[self sharedUser] _passcode];
 }
 
 
 + (NSTimeInterval)timerDuration {
-    return [[LTHPasscodeViewController sharedUser] _timerDuration];
+	return [[self sharedUser] _timerDuration];
 }
 
 
 + (void)saveTimerDuration:(NSTimeInterval)duration {
-    [[LTHPasscodeViewController sharedUser] _saveTimerDuration:duration];
+    [[self sharedUser] _saveTimerDuration:duration];
 }
 
 
 + (NSTimeInterval)timerStartTime {
-    return [[LTHPasscodeViewController sharedUser] _timerStartTime];
+    return [[self sharedUser] _timerStartTime];
 }
 
 
 + (void)saveTimerStartTime {
-    [[LTHPasscodeViewController sharedUser] _saveTimerStartTime];
+	[[self sharedUser] _saveTimerStartTime];
 }
 
 
 + (BOOL)didPasscodeTimerEnd {
-    return [[LTHPasscodeViewController sharedUser] _didPasscodeTimerEnd];
+	return [[self sharedUser] _didPasscodeTimerEnd];
 }
 
 
 + (void)deletePasscodeAndClose {
-    [[LTHPasscodeViewController sharedUser] _deletePasscode];
-    [[LTHPasscodeViewController sharedUser] _dismissMe];
+	[self deletePasscode];
+    [self close];
+}
+
+
++ (void)close {
+    [[self sharedUser] _close];
 }
 
 
 + (void)deletePasscode {
-    [[LTHPasscodeViewController sharedUser] _deletePasscode];
+	[[self sharedUser] _deletePasscode];
 }
 
-
 + (void)useKeychain:(BOOL)useKeychain {
-    [[LTHPasscodeViewController sharedUser] _useKeychain:useKeychain];
+    [[self sharedUser] _useKeychain:useKeychain];
 }
 
 
 #pragma mark - Private methods
+- (void)_close {
+    if (_displayedAsLockScreen) [self _dismissMe];
+    else [self _cancelAndDismissMe];
+}
+
+
 - (void)_useKeychain:(BOOL)useKeychain {
     _usesKeychain = useKeychain;
 }
@@ -245,11 +268,69 @@
                                               error:nil];
 }
 
+#if !(TARGET_IPHONE_SIMULATOR)
+- (void)_setupFingerPrint {
+    if (!self.context && _allowUnlockWithTouchID) {
+        self.context = [[LAContext alloc] init];
+        
+        NSError *error = nil;
+        if ([self.context canEvaluatePolicy:LAPolicyDeviceOwnerAuthenticationWithBiometrics error:&error]) {
+            if (error) {
+                return;
+            }
+            
+            _isUsingTouchID = YES;
+            [_passcodeTextField resignFirstResponder];
+            _animatingView.hidden = YES;
+
+            // Authenticate User
+            [self.context evaluatePolicy:LAPolicyDeviceOwnerAuthenticationWithBiometrics
+                         localizedReason:NSLocalizedStringFromTable(self.touchIDString, _localizationTableName, @"")
+                                   reply:^(BOOL success, NSError *error) {
+                                       
+                                       if (error) {
+                                           dispatch_async(dispatch_get_main_queue(), ^{
+                                               _useFallbackPasscode = YES;
+                                               _animatingView.hidden = NO;
+                                               [self _resetUI];
+                                           });
+                                           self.context = nil;
+                                           return;
+                                       }
+                                       
+                                       if (success) {
+                                           dispatch_async(dispatch_get_main_queue(), ^{
+                                               [self _dismissMe];
+                                               
+                                               if ([self.delegate respondsToSelector: @selector(passcodeWasEnteredSuccessfully)]) {
+                                                   [self.delegate performSelector: @selector(passcodeWasEnteredSuccessfully)];
+                                               }
+                                           });
+                                       }
+                                       else {
+                                           dispatch_async(dispatch_get_main_queue(), ^{
+                                               _useFallbackPasscode = YES;
+                                               _animatingView.hidden = NO;
+                                               [self _resetUI];
+                                           });
+                                       }
+                                       
+                                       self.context = nil;
+                                       
+                                   }];
+        }
+    }
+}
+#endif
 
 #pragma mark - View life
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.view.backgroundColor = _backgroundColor;
+    _backgroundImageView = [[UIImageView alloc] initWithFrame:self.view.frame];
+    [self.view addSubview:_backgroundImageView];
+    _backgroundImageView.image = _backgroundImage;
+    
     _failedAttempts = 0;
     _animatingView = [[UIView alloc] initWithFrame: self.view.frame];
     [self.view addSubview: _animatingView];
@@ -279,15 +360,26 @@
 
 
 - (void)viewWillAppear:(BOOL)animated {
-    [super viewWillAppear:animated];
-    [_passcodeTextField becomeFirstResponder];
+	[super viewWillAppear:animated];
+    _backgroundImageView.image = _backgroundImage;
+    
+    if (!_isUsingTouchID) {
+        [_passcodeTextField becomeFirstResponder];
+    }
 }
 
 
 - (void)viewDidAppear:(BOOL)animated {
     [super viewDidAppear:animated];
-    
-    if (!_passcodeTextField.isFirstResponder) [_passcodeTextField becomeFirstResponder];
+
+    if (!_passcodeTextField.isFirstResponder && (!_isUsingTouchID || _isUserChangingPasscode || _isUserBeingAskedForNewPasscode || _isUserConfirmingPasscode || _isUserEnablingPasscode || _isUserSwitchingBetweenPasscodeModes || _isUserTurningPasscodeOff)) {
+        [_passcodeTextField becomeFirstResponder];
+        _animatingView.hidden = NO;
+    }
+    if (_isUsingTouchID && !_isUserChangingPasscode && !_isUserBeingAskedForNewPasscode && !_isUserConfirmingPasscode && !_isUserEnablingPasscode && !_isUserSwitchingBetweenPasscodeModes && !_isUserTurningPasscodeOff) {
+        [_passcodeTextField resignFirstResponder];
+        _animatingView.hidden = _isUsingTouchID;
+    }
 }
 
 
@@ -333,32 +425,37 @@
 
 - (void)_dismissMe {
     _failedAttempts = 0;
-    _isCurrentlyOnScreen = NO;
-    [self _resetUI];
-    [_passcodeTextField resignFirstResponder];
-    [UIView animateWithDuration: _lockAnimationDuration animations: ^{
-        if (_displayedAsLockScreen) {
-            if ([UIApplication sharedApplication].statusBarOrientation == UIInterfaceOrientationLandscapeLeft) {
-                self.view.center = CGPointMake(self.view.center.x * -1.f, self.view.center.y);
-            }
-            else if ([UIApplication sharedApplication].statusBarOrientation == UIInterfaceOrientationLandscapeRight) {
-                self.view.center = CGPointMake(self.view.center.x * 2.f, self.view.center.y);
-            }
-            else if ([UIApplication sharedApplication].statusBarOrientation == UIInterfaceOrientationPortrait) {
-                self.view.center = CGPointMake(self.view.center.x, self.view.center.y * -1.f);
-            }
-            else {
+	_isCurrentlyOnScreen = NO;
+	[self _resetUI];
+	[_passcodeTextField resignFirstResponder];
+	[UIView animateWithDuration: _lockAnimationDuration animations: ^{
+		if (_displayedAsLockScreen) {
+            if (LTHiOS8) {
                 self.view.center = CGPointMake(self.view.center.x, self.view.center.y * 2.f);
             }
-        }
-        else {
-            // Delete from Keychain
-            if (_isUserTurningPasscodeOff) {
-                [self _deletePasscode];
-            }
-            // Update the Keychain if adding or changing passcode
             else {
-                [self _savePasscode:_tempPasscode];
+                if ([UIApplication sharedApplication].statusBarOrientation == UIInterfaceOrientationLandscapeLeft) {
+                    self.view.center = CGPointMake(self.view.center.x * -1.f, self.view.center.y);
+                }
+                else if ([UIApplication sharedApplication].statusBarOrientation == UIInterfaceOrientationLandscapeRight) {
+                    self.view.center = CGPointMake(self.view.center.x * 2.f, self.view.center.y);
+                }
+                else if ([UIApplication sharedApplication].statusBarOrientation == UIInterfaceOrientationPortrait) {
+                    self.view.center = CGPointMake(self.view.center.x, self.view.center.y * -1.f);
+                }
+                else {
+                    self.view.center = CGPointMake(self.view.center.x, self.view.center.y * 2.f);
+                }
+            }
+		}
+		else {
+			// Delete from Keychain
+			if (_isUserTurningPasscodeOff) {
+				[self _deletePasscode];
+			}
+			// Update the Keychain if adding or changing passcode
+			else {
+				[self _savePasscode:_tempPasscode];
                 //finalize type switching
                 if (_isUserSwitchingBetweenPasscodeModes) {
                     _isUserConfirmingPasscode = NO;
@@ -494,6 +591,7 @@
 - (void)updateViewConstraints {
     [super updateViewConstraints];
     [self.view removeConstraints:self.view.constraints];
+    [_animatingView removeConstraints:_animatingView.constraints];
     
     _firstDigitTextField.hidden = !self.isSimple;
     _secondDigitTextField.hidden = !self.isSimple;
@@ -554,7 +652,7 @@
                                                            constant:0]];
     //////
     
-    CGFloat yOffsetFromCenter = -self.view.frame.size.height * 0.15; // Oana change
+    CGFloat yOffsetFromCenter = -self.view.frame.size.height * 0.15 + _verticalOffset; // Oana change
     NSLayoutConstraint *enterPasscodeConstraintCenterX =
     [NSLayoutConstraint constraintWithItem: _enterPasscodeLabel
                                  attribute: NSLayoutAttributeCenterX
@@ -694,7 +792,7 @@
         [NSLayoutConstraint constraintWithItem: _complexPasscodeOverlayView
                                      attribute: NSLayoutAttributeLeft
                                      relatedBy: NSLayoutRelationEqual
-                                        toItem: self.view
+                                        toItem: _animatingView
                                      attribute: NSLayoutAttributeLeft
                                     multiplier: 1.0f
                                       constant: 0.0f];
@@ -771,72 +869,80 @@
 
 
 #pragma mark - Displaying
-- (void)showLockScreenWithAnimation {
-    [self showLockScreenWithAnimation:NO withLogout:NO andLogoutTitle:nil];
+
+- (void)showLockscreenWithoutAnimation {
+	[self showLockScreenWithAnimation:NO withLogout:NO andLogoutTitle:nil];
 }
 
+
 - (void)showLockScreenWithAnimation:(BOOL)animated withLogout:(BOOL)hasLogout andLogoutTitle:(NSString*)logoutTitle {
-    [self _prepareAsLockScreen];
-    // In case the user leaves the app while the lockscreen is already active.
-    if (!_isCurrentlyOnScreen) {
-        // Usually, the app's window is the first on the stack. I'm doing this because if an alertView or actionSheet
-        // is open when presenting the lockscreen causes problems, because the av/as has it's own window that replaces the keyWindow
-        // and due to how Apple handles said window internally.
-        // Currently the lockscreen appears behind the av/as, which is the best compromise for now.
-        // You can read and/or give a hand following one of the links below
-        // http://stackoverflow.com/questions/19816142/uialertviews-uiactionsheets-and-keywindow-problems
-        // https://github.com/rolandleth/LTHPasscodeViewController/issues/16
-        // Usually not more than one window is needed, but your needs may vary; modify below.
-        // Also, in case the control doesn't work properly,
-        // try it with .keyWindow before anything else, it might work.
-        //		UIWindow *mainWindow = [UIApplication sharedApplication].keyWindow;
-        
-        UIWindow *mainWindow = [UIApplication sharedApplication].keyWindow; // Oana change, this line was commented and the next one was uncommented
-        
-        //		UIWindow *mainWindow = [UIApplication sharedApplication].windows[0];
-        [mainWindow addSubview: self.view];
-        //		[mainWindow.rootViewController addChildViewController: self];
-        // All this hassle because a view added to UIWindow does not rotate automatically
-        // and if we would have added the view anywhere else, it wouldn't display properly
-        // (having a modal on screen when the user leaves the app, for example).
-        [self rotateAccordingToStatusBarOrientationAndSupportedOrientations];
-        CGPoint newCenter;
-        if ([UIApplication sharedApplication].statusBarOrientation == UIInterfaceOrientationLandscapeLeft) {
-            self.view.center = CGPointMake(self.view.center.x * -1.f, self.view.center.y);
-            newCenter = CGPointMake(mainWindow.center.x - self.navigationController.navigationBar.frame.size.height / 2,
-                                    mainWindow.center.y);
-        }
-        else if ([UIApplication sharedApplication].statusBarOrientation == UIInterfaceOrientationLandscapeRight) {
-            self.view.center = CGPointMake(self.view.center.x * 2.f, self.view.center.y);
-            newCenter = CGPointMake(mainWindow.center.x + self.navigationController.navigationBar.frame.size.height / 2,
-                                    mainWindow.center.y);
-        }
-        else if ([UIApplication sharedApplication].statusBarOrientation == UIInterfaceOrientationPortrait) {
+	[self _prepareAsLockScreen];
+    
+	// In case the user leaves the app while the lockscreen is already active.
+	if (!_isCurrentlyOnScreen) {
+		// Usually, the app's window is the first on the stack. I'm doing this because if an alertView or actionSheet
+		// is open when presenting the lockscreen causes problems, because the av/as has it's own window that replaces the keyWindow
+		// and due to how Apple handles said window internally.
+		// Currently the lockscreen appears behind the av/as, which is the best compromise for now.
+		// You can read and/or give a hand following one of the links below
+		// http://stackoverflow.com/questions/19816142/uialertviews-uiactionsheets-and-keywindow-problems
+		// https://github.com/rolandleth/LTHPasscodeViewController/issues/16
+		// Usually not more than one window is needed, but your needs may vary; modify below.
+		// Also, in case the control doesn't work properly,
+		// try it with .keyWindow before anything else, it might work.
+		UIWindow *mainWindow = [UIApplication sharedApplication].keyWindow; // Oana change, this line was commented and the next one was uncommented
+//		UIWindow *mainWindow = [UIApplication sharedApplication].windows[0];
+		[mainWindow addSubview: self.view];
+//		[mainWindow.rootViewController addChildViewController: self];
+		// All this hassle because a view added to UIWindow does not rotate automatically
+		// and if we would have added the view anywhere else, it wouldn't display properly
+		// (having a modal on screen when the user leaves the app, for example).
+		[self rotateAccordingToStatusBarOrientationAndSupportedOrientations];
+		CGPoint newCenter;
+        [self statusBarFrameOrOrientationChanged:nil];
+        if (LTHiOS8) {
             self.view.center = CGPointMake(self.view.center.x, self.view.center.y * -1.f);
-            newCenter = CGPointMake(mainWindow.center.x,
-                                    mainWindow.center.y - self.navigationController.navigationBar.frame.size.height / 2);
-        }
-        else {
-            self.view.center = CGPointMake(self.view.center.x, self.view.center.y * 2.f);
             newCenter = CGPointMake(mainWindow.center.x,
                                     mainWindow.center.y + self.navigationController.navigationBar.frame.size.height / 2);
         }
-        
-        if (animated) {
-            [UIView animateWithDuration: _lockAnimationDuration animations: ^{
-                self.view.center = newCenter;
-            }];
-        }
         else {
-            self.view.center = newCenter;
+            if ([UIApplication sharedApplication].statusBarOrientation == UIInterfaceOrientationLandscapeLeft) {
+                self.view.center = CGPointMake(self.view.center.x * -1.f, self.view.center.y);
+                newCenter = CGPointMake(mainWindow.center.x - self.navigationController.navigationBar.frame.size.height / 2,
+                                        mainWindow.center.y);
+            }
+            else if ([UIApplication sharedApplication].statusBarOrientation == UIInterfaceOrientationLandscapeRight) {
+                self.view.center = CGPointMake(self.view.center.x * 2.f, self.view.center.y);
+                newCenter = CGPointMake(mainWindow.center.x + self.navigationController.navigationBar.frame.size.height / 2,
+                                        mainWindow.center.y);
+            }
+            else if ([UIApplication sharedApplication].statusBarOrientation == UIInterfaceOrientationPortrait) {
+                self.view.center = CGPointMake(self.view.center.x, self.view.center.y * -1.f);
+                newCenter = CGPointMake(mainWindow.center.x,
+                                        mainWindow.center.y - self.navigationController.navigationBar.frame.size.height / 2);
+            }
+            else {
+                self.view.center = CGPointMake(self.view.center.x, self.view.center.y * 2.f);
+                newCenter = CGPointMake(mainWindow.center.x,
+                                        mainWindow.center.y + self.navigationController.navigationBar.frame.size.height / 2);
+            }
         }
-        
-        // Add nav bar & logout button if specified
-        if (hasLogout) {
-            // Navigation Bar with custom UI
-            self.navBar =
-            [[UINavigationBar alloc] initWithFrame:CGRectMake(0, mainWindow.frame.origin.y,
-                                                              mainWindow.frame.size.width, 64)];
+		if (animated) {
+			[UIView animateWithDuration: _lockAnimationDuration animations: ^{
+				self.view.center = newCenter;
+			}];
+		}
+        else {
+			self.view.center = newCenter;
+		}
+		
+		// Add nav bar & logout button if specified
+		if (hasLogout) {
+            _isUsingNavbar = hasLogout;
+			// Navigation Bar with custom UI
+			self.navBar =
+			[[UINavigationBar alloc] initWithFrame:CGRectMake(0, mainWindow.frame.origin.y,
+															  mainWindow.frame.size.width, 64)];
             self.navBar.tintColor = self.navigationTintColor;
             if ([self respondsToSelector:@selector(setEdgesForExtendedLayout:)]) {
                 self.navBar.barTintColor = self.navigationBarTintColor;
@@ -949,7 +1055,10 @@
     _isUserEnablingPasscode = NO;
     _isUserSwitchingBetweenPasscodeModes = NO;
     
-    [self _resetUI];
+	[self _resetUI];
+    #if !(TARGET_IPHONE_SIMULATOR)
+    [self _setupFingerPrint];
+    #endif
 }
 
 
@@ -993,8 +1102,10 @@
 
 #pragma mark - UITextFieldDelegate
 - (BOOL)textFieldShouldEndEditing:(UITextField *)textField {
-    if (!_displayedAsLockScreen && !_displayedAsModal) return YES;
-    return !_isCurrentlyOnScreen;
+    if ((!_displayedAsLockScreen && !_displayedAsModal) || (_isUsingTouchID || !_useFallbackPasscode)) {
+        return YES;
+    }
+	return !_isCurrentlyOnScreen;
 }
 
 - (BOOL)textField:(UITextField *)textField shouldChangeCharactersInRange:(NSRange)range replacementString:(NSString *)string {
@@ -1086,6 +1197,7 @@
             //                                                                object: self
             //                                                              userInfo: nil];
             [self _dismissMe];
+            _useFallbackPasscode = NO;
             if ([self.delegate respondsToSelector: @selector(passcodeWasEnteredSuccessfully)]) {
                 [self.delegate performSelector: @selector(passcodeWasEnteredSuccessfully)];
             }
@@ -1199,11 +1311,13 @@
 
 
 - (void)_resetTextFields {
-    if (![_passcodeTextField isFirstResponder]) [_passcodeTextField becomeFirstResponder];
-    _firstDigitTextField.secureTextEntry = NO;
-    _secondDigitTextField.secureTextEntry = NO;
-    _thirdDigitTextField.secureTextEntry = NO;
-    _fourthDigitTextField.secureTextEntry = NO;
+    if (![_passcodeTextField isFirstResponder] && (!_isUsingTouchID || _useFallbackPasscode)) {
+        [_passcodeTextField becomeFirstResponder];
+    }
+	_firstDigitTextField.secureTextEntry = NO;
+	_secondDigitTextField.secureTextEntry = NO;
+	_thirdDigitTextField.secureTextEntry = NO;
+	_fourthDigitTextField.secureTextEntry = NO;
 }
 
 
@@ -1234,10 +1348,13 @@
             _enterPasscodeLabel.text = NSLocalizedStringFromTable(self.enterPasscodeString, _localizationTableName, @"");
         }
     }
-    
-    // Make sure nav bar for logout is off the screen
-    [self.navBar removeFromSuperview];
-    self.navBar = nil;
+	
+	// Make sure nav bar for logout is off the screen
+    if (!_isUsingNavbar) {
+        [self.navBar removeFromSuperview];
+        self.navBar = nil;
+    }
+    _isUsingNavbar = NO;
     
     _OKButton.hidden = YES;
 }
@@ -1293,12 +1410,14 @@
 
 #pragma mark - Notification Observers
 - (void)_applicationDidEnterBackground {
-    if ([self _doesPasscodeExist]) {
-        if ([_passcodeTextField isFirstResponder])
-            [_passcodeTextField resignFirstResponder];
-        // Without animation because otherwise it won't come down fast enough,
-        // so inside iOS' multitasking view the app won't be covered by anything.
-        if ([self _timerDuration] <= 0) {
+	if ([self _doesPasscodeExist]) {
+        if ([_passcodeTextField isFirstResponder]) {
+            _useFallbackPasscode = NO;
+			[_passcodeTextField resignFirstResponder];
+        }
+		// Without animation because otherwise it won't come down fast enough,
+		// so inside iOS' multitasking view the app won't be covered by anything.
+		if ([self _timerDuration] <= 0) {
             // This is here and the rest in willEnterForeground because when self is pushed
             // instead of presented as a modal,
             // the app would be visible from the multitasking view.
@@ -1318,13 +1437,18 @@
 
 
 - (void)_applicationDidBecomeActive {
-    _coverView.hidden = YES;
+    if(_isUsingTouchID && !_useFallbackPasscode) {
+        _animatingView.hidden = YES;
+        [_passcodeTextField resignFirstResponder];
+    }
+	_coverView.hidden = YES;
 }
 
 
 - (void)_applicationWillEnterForeground {
-    if ([self _doesPasscodeExist] &&
-        [self _didPasscodeTimerEnd]) {
+	if ([self _doesPasscodeExist] &&
+		[self _didPasscodeTimerEnd]) {
+        _useFallbackPasscode = NO;
         // This is here instead of didEnterBackground because when self is pushed
         // instead of presented as a modal,
         // the app would be visible from the multitasking view.
@@ -1332,7 +1456,7 @@
             [_passcodeTextField resignFirstResponder];
             [self.navigationController popViewControllerAnimated:NO];
             // This is like this because it screws up the navigation stack otherwise
-            [self performSelector:@selector(showLockScreenWithAnimation)
+            [self performSelector:@selector(showLockscreenWithoutAnimation)
                        withObject:nil
                        afterDelay:0.0];
         }
@@ -1346,9 +1470,10 @@
 
 
 - (void)_applicationWillResignActive {
-    if ([self _doesPasscodeExist]) {
-        [self _saveTimerStartTime];
-    }
+	if ([self _doesPasscodeExist] && !([self isCurrentlyOnScreen] && [self displayedAsLockScreen])) {
+        _useFallbackPasscode = NO;
+		[self _saveTimerStartTime];
+	}
 }
 
 
@@ -1356,12 +1481,12 @@
 + (instancetype)sharedUser {
     __strong static LTHPasscodeViewController *sharedObject = nil;
     
-    static dispatch_once_t pred;
-    dispatch_once(&pred, ^{
-        sharedObject = [[LTHPasscodeViewController alloc] init];
-    });
-    
-    return sharedObject;
+	static dispatch_once_t pred;
+	dispatch_once(&pred, ^{
+		sharedObject = [[self alloc] init];
+	});
+	
+	return sharedObject;
 }
 
 
@@ -1417,6 +1542,7 @@
     _usesKeychain = YES;
     _displayedAsModal = YES;
     _hidesBackButton = YES;
+    _allowUnlockWithTouchID = YES;
     _passcodeCharacter = @"\u2014"; // A longer "-";
     _localizationTableName = @"LTHPasscodeViewController";
 }
@@ -1431,6 +1557,7 @@
     self.reenterPasscodeString = @"Re-enter your passcode";
     self.reenterNewPasscodeString = @"Re-enter your new passcode";
     self.enterNewPasscodeString = @"Enter your new passcode";
+    self.touchIDString = @"Unlock using Touch ID";
 }
 
 
@@ -1516,13 +1643,14 @@
 
 #pragma mark - Handling rotation
 - (NSUInteger)supportedInterfaceOrientations {
-    if (_displayedAsLockScreen) return UIInterfaceOrientationMaskAll;
-    // I'll be honest and mention I have no idea why this line of code below works.
-    // Without it, if you present the passcode view as lockscreen (directly on the window)
-    // and then inside of a modal, the orientation will be wrong.
-    
-    // If you could explain why, I'd be more than grateful :)
-    return UIInterfaceOrientationPortraitUpsideDown;
+	if (_displayedAsLockScreen)
+        return LTHiOS8 ? UIInterfaceOrientationMaskPortrait : UIInterfaceOrientationMaskAll;
+	// I'll be honest and mention I have no idea why this line of code below works.
+	// Without it, if you present the passcode view as lockscreen (directly on the window)
+	// and then inside of a modal, the orientation will be wrong.
+	
+	// If you could explain why, I'd be more than grateful :)
+	return UIInterfaceOrientationPortraitUpsideDown;
 }
 
 
@@ -1534,6 +1662,17 @@
      therefore no animation is needed to perform this nice transition.
      */
     [self rotateAccordingToStatusBarOrientationAndSupportedOrientations];
+    if (LTHiOS8) {
+        _animatingView.frame = self.view.frame;
+    }
+    else {
+        if (UIInterfaceOrientationIsPortrait([UIApplication sharedApplication].statusBarOrientation)) {
+            _animatingView.frame = CGRectMake(0, 0, [UIApplication sharedApplication].keyWindow.frame.size.width, [UIApplication sharedApplication].keyWindow.frame.size.height);
+        }
+        else {
+            _animatingView.frame = CGRectMake(0, 0, [UIApplication sharedApplication].keyWindow.frame.size.height, [UIApplication sharedApplication].keyWindow.frame.size.width);
+        }
+    }
 }
 
 
@@ -1542,7 +1681,8 @@
 // then presenting it inside a modal in another orientation would display
 // the view in the first orientation.
 - (UIInterfaceOrientation)desiredOrientation {
-    UIInterfaceOrientation statusBarOrientation = [[UIApplication sharedApplication] statusBarOrientation];
+    UIInterfaceOrientation statusBarOrientation =
+    [[UIApplication sharedApplication] statusBarOrientation];
     UIInterfaceOrientationMask statusBarOrientationAsMask = UIInterfaceOrientationMaskFromOrientation(statusBarOrientation);
     if(self.supportedInterfaceOrientations & statusBarOrientationAsMask) {
         return statusBarOrientation;
@@ -1586,7 +1726,7 @@
 
 + (CGFloat)getStatusBarHeight {
     UIInterfaceOrientation orientation = [UIApplication sharedApplication].statusBarOrientation;
-    if(UIInterfaceOrientationIsLandscape(orientation)) {
+    if (UIInterfaceOrientationIsLandscape(orientation)) {
         return [UIApplication sharedApplication].statusBarFrame.size.width;
     }
     else {

@@ -89,6 +89,10 @@
  */
 @property (nonatomic, assign) CGFloat   verticalGap;
 /**
+ @brief The offset between the top label and middle position.
+ */
+@property (nonatomic, assign) CGFloat   verticalOffset;
+/**
  @brief The gap between the passcode digits and the failed label.
  */
 @property (nonatomic, assign) CGFloat   failedAttemptLabelGap;
@@ -120,6 +124,10 @@
  @brief The background color for the view.
  */
 @property (nonatomic, strong) UIColor   *backgroundColor;
+/**
+ @brief The background image for the coverview.
+ */
+@property (nonatomic, strong) UIImage   *backgroundImage;
 /**
  @brief The background color for the cover view that appears on top of the app, visible in the multitasking.
  */
@@ -217,6 +225,10 @@
  */
 @property (nonatomic, strong) NSString *reenterNewPasscodeString;
 /**
+ @brief The string displayed while user unlocks with Touch ID.
+ */
+@property (nonatomic, strong) NSString *touchIDString;
+/**
  @brief The duration of the lock animation.
  */
 @property (nonatomic, assign) CGFloat   lockAnimationDuration;
@@ -240,6 +252,10 @@
  @brief A Boolean value that indicates whether the back bar button is hidden (@c YES) or not (@c NO). Default is @c YES.
  */
 @property (nonatomic, assign) BOOL hidesBackButton;
+/**
+ @brief A Boolean value that indicates whether Touch ID can be used (@c YES) or not (@c NO). Default is @c YES.
+ */
+@property (nonatomic, assign) BOOL allowUnlockWithTouchID;
 
 @property (nonatomic, strong) UIImageView *snapShotImageView; // Oana change
 @property (nonatomic, strong) UIImageView *logoImageView;// Oana change
@@ -319,6 +335,10 @@
  @brief Removes the passcode from the keychain.
  */
 + (void)deletePasscode;
+/**
+ @brief Closes the passcode view controller.
+ */
++ (void)close;
 /**
  @brief Removes the passcode from the keychain and closes the passcode view controller.
  */
