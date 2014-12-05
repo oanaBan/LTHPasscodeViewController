@@ -1459,7 +1459,7 @@
 
 - (void)_loadColorDefaults {
     // Backgrounds
-    _backgroundColor = [UIColor colorWithRed:244.0/255.0 green:242.0/255.0 blue:239.0/255.0 alpha:1]; // Oana change
+    _backgroundColor = [UIColor colorWithRed:101/255.0 green:204/255.0 blue:206/255.0 alpha:1]; // Oana change
     _passcodeBackgroundColor = [UIColor clearColor];
     _coverViewBackgroundColor = [UIColor colorWithRed:0.97f green:0.97f blue:1.0f alpha:1.00f];
     _failedAttemptLabelBackgroundColor =  [UIColor colorWithRed:0.8f green:0.1f blue:0.2f alpha:1.000f];
